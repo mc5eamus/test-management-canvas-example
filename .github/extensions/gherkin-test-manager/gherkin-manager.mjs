@@ -562,12 +562,18 @@ function renderHtml(focusFeature) {
         border-color: var(--true-color-blue, #1f6feb);
         background: var(--true-color-blue-muted, #ddf4ff);
       }
-      .feature-item button {
+      .feature-item .feature-select-btn {
         width: 100%;
         text-align: left;
         border: none;
-        padding: 0;
+        padding: 2px 0;
         background: transparent;
+        font-weight: var(--font-weight-semibold, 600);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .feature-item .feature-select-btn:hover {
+        color: var(--true-color-blue, #1f6feb);
       }
       textarea {
         width: 100%;
@@ -759,8 +765,13 @@ function renderHtml(focusFeature) {
           item.className = "feature-item" + (feature.path === state.selectedPath ? " active" : "");
 
           const button = document.createElement("button");
+          button.className = "feature-select-btn";
           button.textContent = feature.featureName;
-          button.onclick = () => loadFeature(feature.path);
+          button.title = "Click to open and edit this feature";
+          button.onclick = () => {
+            appendActivity("Loading feature: " + feature.featureName);
+            loadFeature(feature.path).catch((err) => reportError("Failed to load feature", err));
+          };
           item.appendChild(button);
 
           const meta = document.createElement("div");
@@ -774,7 +785,7 @@ function renderHtml(focusFeature) {
           runButton.style.marginTop = "6px";
           runButton.onclick = () => {
             appendActivity("Requested feature run: " + feature.featureName);
-            runTests({ mode: "feature", path: feature.path });
+            runTests({ mode: "feature", path: feature.path }).catch((err) => reportError("Run failed", err));
           };
           item.appendChild(runButton);
 
@@ -798,7 +809,7 @@ function renderHtml(focusFeature) {
           runBtn.textContent = "Run";
           runBtn.onclick = () => {
             appendActivity("Requested scenario run: " + scenario.title);
-            runTests({ mode: "scenario", scenarioTitle: scenario.title });
+            runTests({ mode: "scenario", scenarioTitle: scenario.title }).catch((err) => reportError("Scenario run failed", err));
           };
           row.appendChild(runBtn);
           scenarioList.appendChild(row);
@@ -844,20 +855,24 @@ function renderHtml(focusFeature) {
         );
       }
 
-      async function loadFeature(path) {
-        if (!path) {
+      async function loadFeature(featurePath) {
+        if (!featurePath) {
           editor.value = "";
           scenarioList.innerHTML = "";
           featureName.textContent = "";
           return;
         }
-        const featureResponse = await http("/api/feature?path=" + encodeURIComponent(path));
-        state.selectedPath = path;
-        editor.value = featureResponse.content;
-        const parsed = state.assets.features.find((item) => item.path === path);
-        renderFeatures();
-        renderScenarioList(parsed);
-        appendActivity("Opened feature: " + path);
+        try {
+          const featureResponse = await http("/api/feature?path=" + encodeURIComponent(featurePath));
+          state.selectedPath = featurePath;
+          editor.value = featureResponse.content;
+          const parsed = state.assets?.features.find((item) => item.path === featurePath);
+          renderFeatures();
+          renderScenarioList(parsed);
+          appendActivity("Opened feature: " + featurePath, "success");
+        } catch (err) {
+          reportError("Failed to load feature", err);
+        }
       }
 
       async function saveFeature() {
